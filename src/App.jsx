@@ -1,3 +1,4 @@
+
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './hooks/AuthContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -13,6 +14,7 @@ import PersonalStats from './pages/PersonalStats'
 import Admin from './pages/Admin'
 import Group from './pages/Group'
 import ProtectedRoute from './components/ProtectedRoute'
+import UpdatePassword from './pages/UpdatePassword'
 
 const queryClient = new QueryClient()
 
@@ -24,6 +26,7 @@ function App() {
                     <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route path="/signup" element={<Signup />} />
+                        <Route path="/update-password" element={<UpdatePassword />} />
 
                         <Route path="/" element={
                             <ProtectedRoute>
@@ -31,7 +34,7 @@ function App() {
                             </ProtectedRoute>
                         }>
                             <Route index element={<DashboardHome />} />
-                            <Route path="installments" element={<Installments />} />
+                            <Route path="users" element={<Installments />} />
                             <Route path="portfolio" element={<Portfolio />} />
                             <Route path="members" element={<Members />} />
                             <Route path="settings" element={<AccountSettings />} />

@@ -1,20 +1,32 @@
 import { useDashboardData } from '../hooks/useDashboardData'
-import { Users, Wallet, TrendingUp, PieChart } from 'lucide-react'
+import { Users, Wallet, TrendingUp, PieChart, DollarSign } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '../lib/supabaseClient'
 
 export default function Group() {
     const { data, isLoading, error } = useDashboardData()
+
+    // Fetch Members
+    const { data: members, isLoading: isMembersLoading } = useQuery({
+        queryKey: ['groupMembers'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id, full_name, role, created_at')
+                .order('full_name')
+            if (error) throw error
+            return data
+        }
+    })
 
     if (isLoading) return <div className="text-white">Loading group stats...</div>
     if (error) return <div className="text-red-500">Error: {error.message}</div>
 
     const { group } = data
 
-    // Mock member count for now (or fetch if needed, but let's assume we can get it from installments unique user_ids or just fetch profiles count separately)
-    // For simplicity, let's just show the financial totals which are the core request.
-
     const cards = [
         { title: 'Group Total Capital', value: group.totalCapital, icon: Wallet, color: 'text-blue-500' },
-        { title: 'Group Cash Balance', value: group.cashBalance, icon: Wallet, color: 'text-green-500' },
+        { title: 'Group Cash Balance', value: group.cashBalance, icon: DollarSign, color: 'text-green-500' },
         { title: 'Group Fund Value', value: group.totalCurrentValue, icon: PieChart, color: 'text-purple-500' },
         { title: 'Group Total Profit', value: group.totalProfit, icon: TrendingUp, color: group.totalProfit >= 0 ? 'text-green-400' : 'text-red-400' },
     ]
@@ -42,12 +54,36 @@ export default function Group() {
                 })}
             </div>
 
-            <div className="bg-gray-800 p-8 rounded-xl border border-gray-700 text-center">
-                <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">Community Stats</h3>
-                <p className="text-gray-400">
-                    Detailed member breakdown and contribution leaderboards coming soon.
-                </p>
+            <div className="bg-gray-800 p-8 rounded-xl border border-gray-700">
+                <div className="flex items-center gap-3 mb-6">
+                    <Users className="w-8 h-8 text-blue-500" />
+                    <h3 className="text-2xl font-bold text-white">Community Members</h3>
+                </div>
+
+                {isMembersLoading ? (
+                    <div className="text-gray-400">Loading members...</div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {members?.map((member) => (
+                            <div key={member.id} className="bg-gray-750 p-4 rounded-lg border border-gray-700 flex items-center gap-4 hover:bg-gray-700 transition-colors">
+                                <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-lg border border-gray-600">
+                                    {member.full_name?.charAt(0) || 'U'}
+                                </div>
+                                <div>
+                                    <p className="text-white font-medium">{member.full_name}</p>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${member.role === 'admin' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                            {member.role}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                            Joined {new Date(member.created_at).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     )

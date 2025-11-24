@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/AuthContext'
 import { Plus, Trash2, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts'
 
 export default function Portfolio() {
     const { profile } = useAuth()
@@ -99,6 +99,55 @@ export default function Portfolio() {
                         Add Holding
                     </button>
                 )}
+            </div>
+
+            {/* Holdings Performance Chart */}
+            <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg mb-8">
+                <h3 className="text-lg font-bold text-white mb-6">Total Return on Holdings</h3>
+                <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={holdings?.map(h => {
+                             const current = getMockCurrentPrice(h.avg_price) * h.quantity
+                             const invested = h.avg_price * h.quantity
+                             const profit = current - invested
+                             return {
+                                 symbol: h.symbol,
+                                 profit: profit,
+                                 invested: invested
+                             }
+                        }) || []}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                            <XAxis 
+                                dataKey="symbol" 
+                                stroke="#9ca3af" 
+                                tick={{ fill: '#9ca3af' }} 
+                                tickLine={false} 
+                                axisLine={false}
+                            />
+                            <YAxis 
+                                stroke="#9ca3af" 
+                                tick={{ fill: '#9ca3af' }} 
+                                tickLine={false} 
+                                axisLine={false}
+                                tickFormatter={(val) => `₹${val}`}
+                            />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
+                                cursor={{fill: '#374151', opacity: 0.4}}
+                                formatter={(value) => [`₹${value.toFixed(2)}`, 'Profit/Loss']}
+                            />
+                            <Legend />
+                            <Bar dataKey="profit" name="Total Return" radius={[4, 4, 0, 0]}>
+                                {holdings?.map((entry, index) => {
+                                    const current = getMockCurrentPrice(entry.avg_price) * entry.quantity
+                                    const invested = entry.avg_price * entry.quantity
+                                    const profit = current - invested
+                                    return <Cell key={`cell-${index}`} fill={profit >= 0 ? '#10b981' : '#ef4444'} />
+                                })}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
 
             {/* Holdings Table */}

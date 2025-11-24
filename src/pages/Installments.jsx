@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/AuthContext'
-import { Plus, Trash2 } from 'lucide-react'
+import { useDashboardData } from '../hooks/useDashboardData'
+import { Plus, Trash2, Wallet, TrendingUp, PieChart } from 'lucide-react'
 
 export default function Installments() {
     const { profile } = useAuth()
@@ -76,17 +77,32 @@ export default function Installments() {
         }
     })
 
+    const { data: dashboardData } = useDashboardData()
+
     const handleSubmit = (e) => {
         e.preventDefault()
         addMutation.mutate(formData)
     }
 
+    // Filter installments for the logged-in user
+    const myInstallments = installments?.filter(item => item.user_id === profile?.id) || []
+
+    const stats = [
+        { title: 'Total Contribution', value: dashboardData?.personal.myCapital || 0, icon: Wallet, color: 'text-blue-500' },
+        { title: 'Invested Amount', value: (dashboardData?.personal.mySharePercentage * dashboardData?.group.investedAmount) || 0, icon: PieChart, color: 'text-purple-500' },
+        { title: 'Current Value', value: dashboardData?.personal.myCurrentValue || 0, icon: TrendingUp, color: 'text-green-500' },
+        { title: 'My Profit', value: dashboardData?.personal.myProfit || 0, icon: TrendingUp, color: (dashboardData?.personal.myProfit || 0) >= 0 ? 'text-green-400' : 'text-red-400' },
+    ]
+
     if (isLoading) return <div className="text-white">Loading installments...</div>
 
     return (
-        <div>
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold text-white">Installments</h1>
+        <div className="space-y-8">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold text-white">My Contributions</h1>
+                    <p className="text-gray-400">Welcome, {profile?.full_name}</p>
+                </div>
                 {profile?.role === 'admin' && (
                     <button
                         onClick={() => setIsModalOpen(true)}
@@ -96,6 +112,26 @@ export default function Installments() {
                         Add Installment
                     </button>
                 )}
+            </div>
+
+            {/* Personal Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {stats.map((card) => {
+                    const Icon = card.icon
+                    return (
+                        <div key={card.title} className="bg-gray-800 p-6 rounded-xl border border-gray-700 hover:border-gray-600 transition-colors shadow-lg">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-gray-400 text-sm font-medium">{card.title}</h3>
+                                <div className={`p-2 rounded-lg bg-gray-700/50 ${card.color}`}>
+                                    <Icon className="h-5 w-5" />
+                                </div>
+                            </div>
+                            <p className="text-2xl font-bold text-white">
+                                ₹{card.value?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </p>
+                        </div>
+                    )
+                })}
             </div>
 
             {/* Installments Table */}
@@ -111,7 +147,7 @@ export default function Installments() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
-                        {installments?.map((item) => (
+                        {myInstallments.map((item) => (
                             <tr key={item.id} className="hover:bg-gray-750">
                                 <td className="px-6 py-4 text-gray-300">{item.date}</td>
                                 <td className="px-6 py-4 text-white font-medium">{item.profiles?.full_name || 'Unknown'}</td>
@@ -136,7 +172,7 @@ export default function Installments() {
                                 )}
                             </tr>
                         ))}
-                        {installments?.length === 0 && (
+                        {myInstallments.length === 0 && (
                             <tr>
                                 <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
                                     No installments found.

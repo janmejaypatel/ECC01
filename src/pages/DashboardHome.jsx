@@ -9,10 +9,10 @@ export default function DashboardHome() {
     if (error) return <div className="text-red-500">Error loading data: {error.message}</div>
 
     const cards = [
-        { title: 'Total Capital', value: data.group.totalCapital, icon: Wallet, color: 'text-blue-500' },
-        { title: 'Cash Balance', value: data.group.cashBalance, icon: DollarSign, color: 'text-green-500' },
-        { title: 'Invested Value', value: data.group.investedAmount, icon: PieChart, color: 'text-purple-500' },
-        { title: 'Total Profit', value: data.group.totalProfit, icon: TrendingUp, color: data.group.totalProfit >= 0 ? 'text-green-400' : 'text-red-400' },
+        { title: 'Group Fund Value', value: data.group.totalCurrentValue, icon: Wallet, color: 'text-blue-500' },
+        { title: 'My Contribution', value: data.personal.myCapital, icon: DollarSign, color: 'text-green-500' },
+        { title: 'Invested Assets', value: data.group.investedAmount, icon: PieChart, color: 'text-purple-500' },
+        { title: 'Total Returns', value: data.personal.myProfit, icon: TrendingUp, color: data.personal.myProfit >= 0 ? 'text-green-400' : 'text-red-400' },
     ]
 
     // Prepare chart data (group installments by date)
