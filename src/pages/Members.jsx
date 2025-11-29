@@ -74,7 +74,7 @@ export default function Members() {
           data: {
             full_name: inviteName,
           },
-          emailRedirectTo: `${window.location.origin}/update-password`
+          emailRedirectTo: `${import.meta.env.VITE_SITE_URL || window.location.origin}/update-password`
         }
       })
 

@@ -135,7 +135,7 @@ export default function Installments() {
             </div>
 
             {/* Installments Table */}
-            <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+            <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden overflow-x-auto">
                 <table className="w-full text-left">
                     <thead className="bg-gray-700 text-gray-300">
                         <tr>

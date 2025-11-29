@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/AuthContext'
-import { Plus, Trash2, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react'
+import { useStockPrices } from '../hooks/useStockPrices'
+import { Plus, Trash2, TrendingUp, TrendingDown, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts'
 
 export default function Portfolio() {
@@ -30,6 +31,9 @@ export default function Portfolio() {
             return data
         }
     })
+
+    // Fetch Real-time Prices
+    const { data: prices, isLoading: isLoadingPrices, isRefetching } = useStockPrices(holdings)
 
     // Add Holding Mutation
     const addMutation = useMutation({
@@ -68,9 +72,13 @@ export default function Portfolio() {
         addMutation.mutate(formData)
     }
 
-    // Mock current price calculation
-    const getMockCurrentPrice = (avgPrice) => {
-        return avgPrice * 1.12 // Fixed 12% profit for demo consistency
+    // Helper to get current price (Real-time > Mock)
+    const getCurrentPrice = (holding) => {
+        if (prices && prices[holding.symbol]) {
+            return prices[holding.symbol]
+        }
+        // Fallback to mock if no API data
+        return holding.avg_price * 1.12
     }
 
     // Mock Chart Data Generator
@@ -89,7 +97,10 @@ export default function Portfolio() {
     return (
         <div>
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold text-white">Portfolio</h1>
+                <div className="flex items-center gap-4">
+                    <h1 className="text-3xl font-bold text-white">Portfolio</h1>
+                    {isRefetching && <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />}
+                </div>
                 {profile?.role === 'admin' && (
                     <button
                         onClick={() => setIsModalOpen(true)}
@@ -107,39 +118,39 @@ export default function Portfolio() {
                 <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={holdings?.map(h => {
-                             const current = getMockCurrentPrice(h.avg_price) * h.quantity
-                             const invested = h.avg_price * h.quantity
-                             const profit = current - invested
-                             return {
-                                 symbol: h.symbol,
-                                 profit: profit,
-                                 invested: invested
-                             }
+                            const current = getCurrentPrice(h) * h.quantity
+                            const invested = h.avg_price * h.quantity
+                            const profit = current - invested
+                            return {
+                                symbol: h.symbol,
+                                profit: profit,
+                                invested: invested
+                            }
                         }) || []}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                            <XAxis 
-                                dataKey="symbol" 
-                                stroke="#9ca3af" 
-                                tick={{ fill: '#9ca3af' }} 
-                                tickLine={false} 
+                            <XAxis
+                                dataKey="symbol"
+                                stroke="#9ca3af"
+                                tick={{ fill: '#9ca3af' }}
+                                tickLine={false}
                                 axisLine={false}
                             />
-                            <YAxis 
-                                stroke="#9ca3af" 
-                                tick={{ fill: '#9ca3af' }} 
-                                tickLine={false} 
+                            <YAxis
+                                stroke="#9ca3af"
+                                tick={{ fill: '#9ca3af' }}
+                                tickLine={false}
                                 axisLine={false}
                                 tickFormatter={(val) => `₹${val}`}
                             />
-                            <Tooltip 
+                            <Tooltip
                                 contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
-                                cursor={{fill: '#374151', opacity: 0.4}}
+                                cursor={{ fill: '#374151', opacity: 0.4 }}
                                 formatter={(value) => [`₹${value.toFixed(2)}`, 'Profit/Loss']}
                             />
                             <Legend />
                             <Bar dataKey="profit" name="Total Return" radius={[4, 4, 0, 0]}>
                                 {holdings?.map((entry, index) => {
-                                    const current = getMockCurrentPrice(entry.avg_price) * entry.quantity
+                                    const current = getCurrentPrice(entry) * entry.quantity
                                     const invested = entry.avg_price * entry.quantity
                                     const profit = current - invested
                                     return <Cell key={`cell-${index}`} fill={profit >= 0 ? '#10b981' : '#ef4444'} />
@@ -159,14 +170,17 @@ export default function Portfolio() {
                             <th className="px-6 py-3 text-sm font-medium">Name</th>
                             <th className="px-6 py-3 text-sm font-medium text-right">Qty</th>
                             <th className="px-6 py-3 text-sm font-medium text-right">Avg Price</th>
-                            <th className="px-6 py-3 text-sm font-medium text-right">Current Price</th>
+                            <th className="px-6 py-3 text-sm font-medium text-right">
+                                Current Price
+                                {isLoadingPrices && <span className="ml-2 text-xs text-gray-500">(Loading...)</span>}
+                            </th>
                             <th className="px-6 py-3 text-sm font-medium text-right">P/L</th>
                             <th className="px-6 py-3 text-sm font-medium"></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
                         {holdings?.map((item) => {
-                            const currentPrice = getMockCurrentPrice(item.avg_price)
+                            const currentPrice = getCurrentPrice(item)
                             const totalValue = currentPrice * item.quantity
                             const investedValue = item.avg_price * item.quantity
                             const profit = totalValue - investedValue
@@ -174,9 +188,8 @@ export default function Portfolio() {
                             const isExpanded = expandedRow === item.id
 
                             return (
-                                <>
+                                <React.Fragment key={item.id}>
                                     <tr
-                                        key={item.id}
                                         className="hover:bg-gray-750 cursor-pointer transition-colors"
                                         onClick={() => setExpandedRow(isExpanded ? null : item.id)}
                                     >
@@ -187,7 +200,15 @@ export default function Portfolio() {
                                         <td className="px-6 py-4 text-gray-300">{item.name}</td>
                                         <td className="px-6 py-4 text-white text-right">{item.quantity}</td>
                                         <td className="px-6 py-4 text-gray-300 text-right">₹{item.avg_price}</td>
-                                        <td className="px-6 py-4 text-white text-right">₹{currentPrice.toFixed(2)}</td>
+                                        <td className="px-6 py-4 text-white text-right">
+                                            {prices && prices[item.symbol] ? (
+                                                <span className="text-green-400 font-bold" title="Real-time price">₹{prices[item.symbol]}</span>
+                                            ) : (
+                                                <span className="text-yellow-500" title="Mock Data (API failed or symbol not found)">
+                                                    ₹{currentPrice.toFixed(2)}*
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className={`px-6 py-4 text-right font-medium ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                             <div className="flex items-center justify-end gap-1">
                                                 {profit >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -250,7 +271,7 @@ export default function Portfolio() {
                                             </td>
                                         </tr>
                                     )}
-                                </>
+                                </React.Fragment>
                             )
                         })}
                         {holdings?.length === 0 && (

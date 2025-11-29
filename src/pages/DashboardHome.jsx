@@ -12,7 +12,7 @@ export default function DashboardHome() {
         { title: 'Group Fund Value', value: data.group.totalCurrentValue, icon: Wallet, color: 'text-blue-500' },
         { title: 'My Contribution', value: data.personal.myCapital, icon: DollarSign, color: 'text-green-500' },
         { title: 'Invested Assets', value: data.group.investedAmount, icon: PieChart, color: 'text-purple-500' },
-        { title: 'Total Returns', value: data.personal.myProfit, icon: TrendingUp, color: data.personal.myProfit >= 0 ? 'text-green-400' : 'text-red-400' },
+        { title: 'My Returns', value: data.personal.myProfit, icon: TrendingUp, color: data.personal.myProfit >= 0 ? 'text-green-400' : 'text-red-400' },
     ]
 
     // Prepare chart data (group installments by date)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useNavigate } from 'react-router-dom'
 import { Lock } from 'lucide-react'
@@ -9,6 +9,16 @@ export default function UpdatePassword() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const navigate = useNavigate()
+
+    useEffect(() => {
+        // Check if we have a session (which Supabase sets from the URL hash)
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!session) {
+                // If no session, it means they didn't come from a valid link
+                navigate('/login')
+            }
+        })
+    }, [navigate])
 
     const handleUpdatePassword = async (e) => {
         e.preventDefault()

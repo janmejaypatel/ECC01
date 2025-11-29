@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/AuthContext'
 import Members from './Members'
 import Installments from './Installments'
 import Portfolio from './Portfolio'
+import AdminNotifications from '../components/AdminNotifications'
 import { Users, Wallet, PieChart, Bell } from 'lucide-react'
 
 export default function Admin() {
@@ -33,8 +34,8 @@ export default function Admin() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${activeTab === tab.id
-                                    ? 'bg-blue-600 text-white'
-                                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
                                 }`}
                         >
                             <Icon className="w-4 h-4 mr-2" />
@@ -49,13 +50,7 @@ export default function Admin() {
                 {activeTab === 'members' && <Members />}
                 {activeTab === 'installments' && <Installments />}
                 {activeTab === 'holdings' && <Portfolio />}
-                {activeTab === 'notifications' && (
-                    <div className="text-center py-12 text-gray-500">
-                        <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p>Notification System Coming Soon</p>
-                        <p className="text-sm mt-2">Will allow sending emails to users.</p>
-                    </div>
-                )}
+                {activeTab === 'notifications' && <AdminNotifications />}
             </div>
         </div>
     )
