@@ -11,7 +11,7 @@ export default function Admin() {
     const [activeTab, setActiveTab] = useState('members')
 
     if (profile?.role !== 'admin') {
-        return <div className="text-white">Access Denied. Admin only.</div>
+        return <div className="text-error font-heading p-8">Access Denied. Admin only.</div>
     }
 
     const tabs = [
@@ -22,20 +22,20 @@ export default function Admin() {
     ]
 
     return (
-        <div>
-            <h1 className="text-3xl font-bold text-white mb-8">Admin Panel</h1>
+        <div className="font-body">
+            <h1 className="text-3xl font-bold text-primary mb-8 font-heading">Admin Panel</h1>
 
             {/* Tabs */}
-            <div className="flex space-x-4 mb-8 border-b border-gray-700 pb-4 overflow-x-auto">
+            <div className="flex space-x-4 mb-8 border-b border-border pb-4 overflow-x-auto">
                 {tabs.map((tab) => {
                     const Icon = tab.icon
                     return (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${activeTab === tab.id
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                            className={`flex items-center px-4 py-2 rounded-xl transition-all whitespace-nowrap font-medium ${activeTab === tab.id
+                                ? 'bg-primary text-background shadow-gold-glow'
+                                : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
                                 }`}
                         >
                             <Icon className="w-4 h-4 mr-2" />
@@ -46,7 +46,7 @@ export default function Admin() {
             </div>
 
             {/* Content */}
-            <div className="bg-gray-900 rounded-xl">
+            <div className="bg-transparent rounded-xl">
                 {activeTab === 'members' && <Members />}
                 {activeTab === 'installments' && <Installments />}
                 {activeTab === 'holdings' && <Portfolio />}

@@ -106,120 +106,171 @@ export default function Members() {
   }
 
   if (profile?.role !== 'admin') {
-    return <div className="text-white">Access Denied. Admin only.</div>
+    return <div className="text-error font-heading p-8">Access Denied. Admin only.</div>
   }
 
-  if (isLoading) return <div className="text-white">Loading members...</div>
+  if (isLoading) return <div className="text-text-main font-heading p-8">Loading members...</div>
 
   return (
-    <div>
+    <div className="font-body">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-white">Member Management</h1>
+        <h1 className="text-3xl font-bold text-primary font-heading">Member Management</h1>
         <button
           onClick={() => setIsInviteModalOpen(true)}
-          className="flex items-center bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center bg-primary text-background font-bold px-4 py-2 rounded-xl hover:bg-primary-hover transition-all shadow-gold-glow hover:shadow-gold-glow-hover"
         >
           <Plus className="w-5 h-5 mr-2" />
           Add Member
         </button>
       </div>
 
-      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-gray-700 text-gray-300">
-            <tr>
-              <th className="px-6 py-3 text-sm font-medium">Name</th>
-              <th className="px-6 py-3 text-sm font-medium">Email</th>
-              <th className="px-6 py-3 text-sm font-medium">Role</th>
-              <th className="px-6 py-3 text-sm font-medium">Status</th>
-              <th className="px-6 py-3 text-sm font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-700">
-            {members?.map((member) => (
-              <tr key={member.id} className="hover:bg-gray-750">
-                <td className="px-6 py-4 text-white font-medium">{member.full_name}</td>
-                <td className="px-6 py-4 text-gray-400">{member.email}</td>
-                <td className="px-6 py-4">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${member.role === 'admin' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'
-                    }`}>
-                    {member.role === 'admin' ? <Shield className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
-                    {member.role}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${member.is_approved ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'
-                    }`}>
-                    {member.is_approved ? 'Active' : 'Pending'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-right space-x-3">
-                  {/* Approve Button - Only show if NOT approved */}
-                  {!member.is_approved && (
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-surface rounded-2xl border border-border overflow-hidden shadow-luxury">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left whitespace-nowrap">
+            <thead className="bg-surface-hover text-primary border-b border-border font-heading">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold tracking-wider">Name</th>
+                <th className="px-6 py-4 text-sm font-bold tracking-wider">Email</th>
+                <th className="px-6 py-4 text-sm font-bold tracking-wider">Role</th>
+                <th className="px-6 py-4 text-sm font-bold tracking-wider">Status</th>
+                <th className="px-6 py-4 text-sm font-bold tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50 font-body">
+              {members?.map((member) => (
+                <tr key={member.id} className="hover:bg-surface-hover transition-colors">
+                  <td className="px-6 py-4 text-text-main font-medium">{member.full_name}</td>
+                  <td className="px-6 py-4 text-text-muted">{member.email}</td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${member.role === 'admin' ? 'bg-primary/20 text-primary' : 'bg-text-muted/10 text-text-muted'
+                      }`}>
+                      {member.role === 'admin' ? <Shield className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
+                      {member.role}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${member.is_approved ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+                      }`}>
+                      {member.is_approved ? 'Active' : 'Pending'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right space-x-3">
+                    {/* Approve Button - Only show if NOT approved */}
+                    {!member.is_approved && (
+                      <button
+                        onClick={() => toggleApprovalMutation.mutate({ id: member.id, is_approved: true })}
+                        className="text-sm font-medium text-success hover:text-green-400"
+                        disabled={member.id === profile.id}
+                      >
+                        Approve
+                      </button>
+                    )}
+
+                    {/* Make Admin/Member Button */}
                     <button
-                      onClick={() => toggleApprovalMutation.mutate({ id: member.id, is_approved: true })}
-                      className="text-sm font-medium text-green-400 hover:text-green-300"
+                      onClick={() => {
+                        console.log('Toggling role for:', member.id, 'Current role:', member.role);
+                        toggleRoleMutation.mutate({ id: member.id, role: member.role === 'admin' ? 'member' : 'admin' })
+                      }}
+                      className="text-sm font-medium text-primary hover:text-primary-hover"
                       disabled={member.id === profile.id}
                     >
-                      Approve
+                      {member.role === 'admin' ? 'Demote' : 'Promote'}
                     </button>
-                  )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-                  {/* Make Admin/Member Button */}
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {members?.map((member) => (
+          <div key={member.id} className="bg-surface rounded-2xl border border-border p-4 shadow-luxury">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <h3 className="text-lg font-bold text-text-main">{member.full_name}</h3>
+                <p className="text-sm text-text-muted">{member.email}</p>
+              </div>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${member.is_approved ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+                }`}>
+                {member.is_approved ? 'Active' : 'Pending'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border/50 pt-3 mt-2">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${member.role === 'admin' ? 'bg-primary/20 text-primary' : 'bg-text-muted/10 text-text-muted'
+                }`}>
+                {member.role === 'admin' ? <Shield className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
+                {member.role}
+              </span>
+
+              <div className="flex gap-3">
+                {!member.is_approved && (
                   <button
-                    onClick={() => {
-                      console.log('Toggling role for:', member.id, 'Current role:', member.role);
-                      toggleRoleMutation.mutate({ id: member.id, role: member.role === 'admin' ? 'member' : 'admin' })
-                    }}
-                    className="text-sm font-medium text-blue-400 hover:text-blue-300"
+                    onClick={() => toggleApprovalMutation.mutate({ id: member.id, is_approved: true })}
+                    className="text-sm font-medium text-success hover:text-green-400"
                     disabled={member.id === profile.id}
                   >
-                    {member.role === 'admin' ? 'Demote' : 'Promote'}
+                    Approve
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                )}
+
+                <button
+                  onClick={() => {
+                    toggleRoleMutation.mutate({ id: member.id, role: member.role === 'admin' ? 'member' : 'admin' })
+                  }}
+                  className="text-sm font-medium text-primary hover:text-primary-hover"
+                  disabled={member.id === profile.id}
+                >
+                  {member.role === 'admin' ? 'Demote' : 'Promote'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Invite Modal */}
       {isInviteModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-md p-6 relative shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-surface rounded-2xl border border-border w-full max-w-md p-6 relative shadow-luxury">
             <button
               onClick={() => setIsInviteModalOpen(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              className="absolute top-4 right-4 text-text-muted hover:text-text-main"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h2 className="text-xl font-bold text-white mb-6 flex items-center">
-              <Mail className="w-6 h-6 mr-2 text-blue-500" />
+            <h2 className="text-xl font-bold text-primary mb-6 flex items-center font-heading">
+              <Mail className="w-6 h-6 mr-2" />
               Invite New Member
             </h2>
 
-            <form onSubmit={handleInvite} className="space-y-4">
+            <form onSubmit={handleInvite} className="space-y-4 font-body">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Full Name</label>
+                <label className="block text-sm font-medium text-text-muted mb-1">Full Name</label>
                 <input
                   type="text"
                   required
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-primary transition-colors"
                   placeholder="John Doe"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Email Address</label>
+                <label className="block text-sm font-medium text-text-muted mb-1">Email Address</label>
                 <input
                   type="email"
                   required
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-primary transition-colors"
                   placeholder="john@example.com"
                 />
               </div>
@@ -227,7 +278,7 @@ export default function Members() {
               <button
                 type="submit"
                 disabled={inviteLoading}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg transition-colors mt-4 disabled:opacity-50"
+                className="w-full bg-primary text-background font-bold py-3 rounded-xl hover:bg-primary-hover transition-all shadow-gold-glow disabled:opacity-50"
               >
                 {inviteLoading ? 'Sending Invitation...' : 'Send Invitation'}
               </button>

@@ -76,8 +76,14 @@ export const AuthProvider = ({ children }) => {
         if (error) throw error
     }
 
+    const updateEmail = async (email) => {
+        const { data, error } = await supabase.auth.updateUser({ email })
+        if (error) throw error
+        return data
+    }
+
     return (
-        <AuthContext.Provider value={{ user, profile, signUp, signIn, signOut, loading }}>
+        <AuthContext.Provider value={{ user, profile, signUp, signIn, signOut, updateEmail, loading }}>
             {!loading && children}
         </AuthContext.Provider>
     )

@@ -9,6 +9,17 @@ export default function AdminNotifications() {
     const [description, setDescription] = useState('')
     const [status, setStatus] = useState('idle') // idle, sending, success, error
 
+    // Health Check: Verify table exists
+    const { error: healthCheckError } = useQuery({
+        queryKey: ['notificationsHealthCheck'],
+        queryFn: async () => {
+            const { error } = await supabase.from('notifications').select('count').limit(1)
+            if (error) return error
+            return null
+        },
+        retry: false
+    })
+
     // Fetch Users
     const { data: users, isLoading } = useQuery({
         queryKey: ['adminUsersList'],
@@ -22,16 +33,27 @@ export default function AdminNotifications() {
         }
     })
 
+    const [errorMessage, setErrorMessage] = useState('')
+
     const handleSend = async (e) => {
         e.preventDefault()
         setStatus('sending')
+        setErrorMessage('')
 
-        // Simulate API call
         try {
-            // In a real app, you would call a Supabase Edge Function here
-            // await supabase.functions.invoke('send-email', { body: { userId: selectedUser, subject, description } })
+            console.log('Sending notification to:', selectedUser)
+            const { error } = await supabase
+                .from('notifications')
+                .insert([
+                    {
+                        user_id: selectedUser,
+                        subject: subject,
+                        message: description,
+                        is_read: false
+                    }
+                ])
 
-            await new Promise(resolve => setTimeout(resolve, 1500)) // Fake delay
+            if (error) throw error
 
             setStatus('success')
             // Reset form after 2 seconds
@@ -42,36 +64,53 @@ export default function AdminNotifications() {
                 setDescription('')
             }, 2000)
         } catch (error) {
-            console.error(error)
+            console.error('Error sending notification:', error)
             setStatus('error')
+            setErrorMessage(error.message || 'Unknown error occurred')
         }
     }
 
-    if (isLoading) return <div className="text-gray-400">Loading users...</div>
+    if (isLoading) return <div className="text-text-muted">Loading users...</div>
 
     return (
-        <div className="max-w-2xl mx-auto p-6">
+        <div className="max-w-2xl mx-auto p-6 font-body">
             <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-blue-500/10 rounded-full">
-                    <Mail className="w-6 h-6 text-blue-500" />
+                <div className="p-3 bg-primary/10 rounded-full">
+                    <Mail className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                    <h2 className="text-xl font-bold text-white">Send Notification</h2>
-                    <p className="text-sm text-gray-400">Send an email notification to a specific user.</p>
+                    <h2 className="text-xl font-bold text-text-main font-heading">Send Notification</h2>
+                    <p className="text-sm text-text-muted">Send an in-app notification to a specific user.</p>
                 </div>
             </div>
+
+            {healthCheckError && (
+                <div className="mb-6 p-4 bg-error/10 border border-error/20 rounded-xl flex items-start gap-3 text-error">
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                    <div>
+                        <h3 className="font-bold text-sm">System Error: Table Missing</h3>
+                        <p className="text-xs mt-1">
+                            The 'notifications' table does not exist in your database.
+                            Please run the SQL migration script provided in the chat.
+                        </p>
+                        <p className="text-xs mt-2 font-mono bg-black/10 p-2 rounded">
+                            {healthCheckError.message}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <form onSubmit={handleSend} className="space-y-6">
                 {/* User Selection */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-text-muted mb-2">
                         Select User
                     </label>
                     <select
                         required
                         value={selectedUser}
                         onChange={(e) => setSelectedUser(e.target.value)}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                     >
                         <option value="">Choose a recipient...</option>
                         {users?.map((user) => (
@@ -84,7 +123,7 @@ export default function AdminNotifications() {
 
                 {/* Subject */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-text-muted mb-2">
                         Subject
                     </label>
                     <input
@@ -93,13 +132,13 @@ export default function AdminNotifications() {
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
                         placeholder="e.g., Important Update Regarding Your Investment"
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                     />
                 </div>
 
                 {/* Description */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-text-muted mb-2">
                         Description
                     </label>
                     <textarea
@@ -108,22 +147,22 @@ export default function AdminNotifications() {
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="Type your message here..."
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none"
+                        className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors resize-none"
                     />
                 </div>
 
                 {/* Status Messages */}
                 {status === 'success' && (
-                    <div className="flex items-center gap-2 text-green-400 bg-green-400/10 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-success bg-success/10 p-4 rounded-xl">
                         <CheckCircle className="w-5 h-5" />
                         <span>Notification sent successfully!</span>
                     </div>
                 )}
 
                 {status === 'error' && (
-                    <div className="flex items-center gap-2 text-red-400 bg-red-400/10 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-error bg-error/10 p-4 rounded-xl">
                         <AlertCircle className="w-5 h-5" />
-                        <span>Failed to send notification. Please try again.</span>
+                        <span>{errorMessage || 'Failed to send notification. Please try again.'}</span>
                     </div>
                 )}
 
@@ -131,14 +170,14 @@ export default function AdminNotifications() {
                 <button
                     type="submit"
                     disabled={status === 'sending' || status === 'success'}
-                    className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all duration-200 ${status === 'sending'
-                            ? 'bg-blue-600/50 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-500/25'
+                    className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-all duration-200 ${status === 'sending'
+                        ? 'bg-primary/50 cursor-not-allowed'
+                        : 'bg-primary hover:bg-primary-hover text-background shadow-gold-glow hover:shadow-gold-glow-hover'
                         }`}
                 >
                     {status === 'sending' ? (
                         <>
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <div className="w-5 h-5 border-2 border-background/30 border-t-background rounded-full animate-spin" />
                             Sending...
                         </>
                     ) : (

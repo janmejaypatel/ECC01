@@ -48,25 +48,25 @@ export default function UpdatePassword() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
-            <div className="max-w-md w-full bg-gray-800 rounded-xl shadow-xl p-8 border border-gray-700">
+        <div className="min-h-screen bg-background flex items-center justify-center px-4 font-body">
+            <div className="max-w-md w-full bg-surface rounded-2xl shadow-luxury p-8 border border-border">
                 <div className="text-center mb-8">
-                    <div className="h-12 w-12 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Lock className="h-6 w-6 text-blue-500" />
+                    <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Lock className="h-6 w-6 text-primary" />
                     </div>
-                    <h2 className="text-2xl font-bold text-white">Set New Password</h2>
-                    <p className="text-gray-400 mt-2">Please enter your new password below.</p>
+                    <h2 className="text-2xl font-bold text-primary font-heading">Set New Password</h2>
+                    <p className="text-text-muted mt-2">Please enter your new password below.</p>
                 </div>
 
                 {error && (
-                    <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-3 rounded-lg mb-6 text-sm">
+                    <div className="bg-error/10 border border-error text-error p-3 rounded-xl mb-6 text-sm">
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleUpdatePassword} className="space-y-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-2">
+                        <label className="block text-sm font-medium text-text-muted mb-2">
                             New Password
                         </label>
                         <input
@@ -74,13 +74,13 @@ export default function UpdatePassword() {
                             required
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                             placeholder="••••••••"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-2">
+                        <label className="block text-sm font-medium text-text-muted mb-2">
                             Confirm Password
                         </label>
                         <input
@@ -88,7 +88,7 @@ export default function UpdatePassword() {
                             required
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
-                            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                             placeholder="••••••••"
                         />
                     </div>
@@ -96,7 +96,7 @@ export default function UpdatePassword() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-primary text-background font-bold py-3 rounded-xl hover:bg-primary-hover transition-all shadow-gold-glow disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {loading ? 'Updating...' : 'Update Password'}
                     </button>
