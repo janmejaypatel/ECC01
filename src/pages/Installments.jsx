@@ -84,8 +84,10 @@ export default function Installments() {
         addMutation.mutate(formData)
     }
 
-    // Filter installments for the logged-in user
-    const myInstallments = installments?.filter(item => item.user_id === profile?.id) || []
+    // Filter installments for the logged-in user (or show all for admin)
+    const myInstallments = profile?.role === 'admin'
+        ? (installments || [])
+        : (installments?.filter(item => item.user_id === profile?.id) || [])
 
     const stats = [
         { title: 'Total Contribution', value: dashboardData?.personal.myCapital || 0, icon: Wallet, color: 'text-blue-500' },
@@ -100,7 +102,9 @@ export default function Installments() {
         <div className="space-y-8 font-body">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold text-primary font-heading">My Contributions</h1>
+                    <h1 className="text-3xl font-bold text-primary font-heading">
+                        {profile?.role === 'admin' ? 'All Installments' : 'My Contributions'}
+                    </h1>
                     <p className="text-text-muted">Welcome, {profile?.full_name}</p>
                 </div>
                 {profile?.role === 'admin' && (

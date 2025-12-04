@@ -52,7 +52,7 @@ export default function DashboardLayout() {
             {/* Floating Glass Header */}
             <div className="p-4 pb-0 z-30 flex-shrink-0">
                 <header className="h-16 md:h-20 bg-surface/90 backdrop-blur-lg border border-border rounded-2xl flex items-center justify-between px-4 md:px-8 shadow-luxury">
-                    <div className="flex items-center gap-4">
+                    <Link to="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
                         {theme === 'light' ? (
                             <div
                                 className="h-8 w-8 md:h-10 md:w-10 bg-primary"
@@ -72,7 +72,7 @@ export default function DashboardLayout() {
                         )}
                         <h1 className="text-lg md:text-xl font-bold text-primary tracking-wide hidden md:block font-heading">Elevate Capital Collective</h1>
                         <h1 className="text-lg font-bold text-primary tracking-wide md:hidden font-heading">ECC</h1>
-                    </div>
+                    </Link>
 
                     <div className="flex items-center gap-3 md:gap-6">
                         {/* Theme Toggle */}
