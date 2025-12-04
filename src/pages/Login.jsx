@@ -72,6 +72,12 @@ export default function Login() {
                             {loading ? 'Signing in...' : 'Sign in'}
                         </button>
                     </div>
+
+                    <div className="text-center mt-4">
+                        <Link to="/update-password" className="text-sm text-primary hover:text-primary-hover transition-colors">
+                            Forgot your password?
+                        </Link>
+                    </div>
                 </form>
             </div>
         </div>

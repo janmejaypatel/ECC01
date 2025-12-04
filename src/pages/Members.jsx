@@ -61,44 +61,74 @@ export default function Members() {
     setInviteLoading(true)
 
     try {
-      // Create a temporary client to sign up the user without logging out the admin
+      console.log('Starting invite process for:', inviteEmail)
+
+      // 1. Check if user already exists in profiles
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .eq('email', inviteEmail)
+        .single()
+
+      if (existingUser) {
+        throw new Error('User with this email already exists in the system.')
+      }
+
+      // 2. Create a temporary client to sign up the user without logging out the admin
+      // This is necessary because supabase.auth.signUp signs in the user immediately if email confirmation is disabled,
+      // or just initiates the flow. We don't want to affect the current admin session.
       const tempSupabase = createClient(
         import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY
+        import.meta.env.VITE_SUPABASE_ANON_KEY,
+        { auth: { persistSession: false } } // Critical: Do not persist this session
       )
 
-      const { data: { user }, error } = await tempSupabase.auth.signUp({
+      const redirectUrl = `${window.location.origin}/update-password`
+      console.log('Redirect URL:', redirectUrl)
+
+      const { data, error } = await tempSupabase.auth.signUp({
         email: inviteEmail,
         password: crypto.randomUUID(), // Generate a random temp password
         options: {
           data: {
             full_name: inviteName,
           },
-          emailRedirectTo: `${import.meta.env.VITE_SITE_URL || window.location.origin}/update-password`
+          emailRedirectTo: redirectUrl
         }
       })
 
+      console.log('Signup API Response:', { data, error })
+
       if (error) throw error
 
-      // Auto-approve the invited user
-      if (user) {
-        // Wait a brief moment for the trigger to create the profile
-        await new Promise(resolve => setTimeout(resolve, 1000))
-
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ is_approved: true })
-          .eq('id', user.id)
-
-        if (updateError) console.error('Error auto-approving user:', updateError)
+      if (data?.user && data?.user?.identities?.length === 0) {
+         throw new Error('This email is already registered. Please ask the user to login or reset their password.')
       }
 
-      alert('Invitation sent! User will receive an email to confirm and set their password.')
+      // 3. Auto-approve the invited user (Optional: depends on your flow)
+      // We need to wait a moment for the trigger to create the profile if it hasn't happened yet
+      if (data?.user) {
+         // Note: We can't update the profile immediately if the trigger is slow, 
+         // but we can try. If it fails, the admin can approve them manually later.
+         setTimeout(async () => {
+             const { error: updateError } = await supabase
+               .from('profiles')
+               .update({ is_approved: true })
+               .eq('id', data.user.id)
+             
+             if (updateError) console.warn('Auto-approve failed (user might need to confirm email first):', updateError)
+             else console.log('User auto-approved')
+         }, 2000)
+      }
+
+      alert(`Invitation sent to ${inviteEmail}! They will receive an email to confirm their account.`)
       setIsInviteModalOpen(false)
       setInviteEmail('')
       setInviteName('')
       queryClient.invalidateQueries(['allMembers'])
+
     } catch (error) {
+      console.error('Invite Error:', error)
       alert(error.message)
     } finally {
       setInviteLoading(false)

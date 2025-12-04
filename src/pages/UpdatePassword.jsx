@@ -39,7 +39,9 @@ export default function UpdatePassword() {
         try {
             const { error } = await supabase.auth.updateUser({ password })
             if (error) throw error
-            navigate('/')
+
+            await supabase.auth.signOut()
+            navigate('/login')
         } catch (error) {
             setError(error.message)
         } finally {
