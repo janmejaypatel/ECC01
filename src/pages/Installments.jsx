@@ -232,7 +232,7 @@ export default function Installments() {
 
             {/* Add Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
                     <div className="bg-surface rounded-2xl p-6 w-full max-w-md border border-border shadow-luxury">
                         <h2 className="text-xl font-bold text-primary mb-4 font-heading">Add New Installment</h2>
                         <form onSubmit={handleSubmit} className="space-y-4 font-body">

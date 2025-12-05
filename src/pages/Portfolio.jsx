@@ -55,7 +55,9 @@ export default function Portfolio() {
         name: '',
         quantity: '',
         avg_price: '',
-        type: 'stock'
+        type: 'stock',
+        transactionType: 'buy',
+        date: new Date().toISOString().split('T')[0]
     })
 
     // Fetch Holdings
@@ -78,11 +80,17 @@ export default function Portfolio() {
     // Add Holding Mutation
     const addMutation = useMutation({
         mutationFn: async (newHolding) => {
+            const quantity = Number(newHolding.quantity)
+            const finalQuantity = newHolding.transactionType === 'sell' ? -quantity : quantity
+
             const holdingToInsert = {
-                ...newHolding,
-                quantity: Number(newHolding.quantity),
+                symbol: newHolding.symbol,
+                fake_symbol: newHolding.fake_symbol || null,
+                name: newHolding.name,
+                quantity: finalQuantity,
                 avg_price: Number(newHolding.avg_price),
-                fake_symbol: newHolding.fake_symbol || null
+                type: newHolding.type,
+                date: newHolding.date
             }
             const { error } = await supabase.from('holdings').insert([holdingToInsert])
             if (error) throw error
@@ -91,7 +99,16 @@ export default function Portfolio() {
             queryClient.invalidateQueries(['holdings'])
             queryClient.invalidateQueries(['dashboardData'])
             setIsModalOpen(false)
-            setFormData({ symbol: '', fake_symbol: '', name: '', quantity: '', avg_price: '', type: 'stock' })
+            setFormData({
+                symbol: '',
+                fake_symbol: '',
+                name: '',
+                quantity: '',
+                avg_price: '',
+                type: 'stock',
+                transactionType: 'buy',
+                date: new Date().toISOString().split('T')[0]
+            })
         },
         onError: (error) => {
             alert('Error adding holding: ' + error.message)
@@ -130,24 +147,69 @@ export default function Portfolio() {
     const aggregatedHoldings = useMemo(() => {
         if (!holdings) return []
         const groups = {}
+
+        // Group by symbol first
         holdings.forEach(h => {
             if (!groups[h.symbol]) {
-                groups[h.symbol] = {
-                    ...h,
-                    quantity: 0,
-                    totalInvested: 0,
-                    count: 0
-                }
+                groups[h.symbol] = []
             }
-            groups[h.symbol].quantity += Number(h.quantity)
-            groups[h.symbol].totalInvested += Number(h.quantity) * Number(h.avg_price)
-            groups[h.symbol].count += 1
+            groups[h.symbol].push(h)
         })
 
-        return Object.values(groups).map(g => ({
-            ...g,
-            avg_price: g.quantity > 0 ? g.totalInvested / g.quantity : 0
-        }))
+        return Object.keys(groups).map(symbol => {
+            const transactions = groups[symbol].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
+            
+            let quantity = 0
+            let costBasis = 0
+            let realizedProfit = 0
+            let name = transactions[0]?.name || ''
+            let fake_symbol = transactions[0]?.fake_symbol || ''
+
+            transactions.forEach(t => {
+                const qty = Number(t.quantity)
+                const price = Number(t.avg_price)
+                
+                if (qty > 0) {
+                    // BUY
+                    quantity += qty
+                    costBasis += qty * price
+                } else {
+                    // SELL
+                    const sellQty = Math.abs(qty)
+                    if (quantity > 0) {
+                        const avgCost = costBasis / quantity
+                        const costOfSoldShares = sellQty * avgCost
+                        
+                        realizedProfit += (sellQty * price) - costOfSoldShares
+                        costBasis -= costOfSoldShares
+                        quantity -= sellQty
+                    } else {
+                        // Selling without holdings (shouldn't happen normally, but handle gracefully)
+                        realizedProfit += (sellQty * price)
+                        quantity -= sellQty
+                    }
+                }
+                // Update metadata if available
+                if (t.name) name = t.name
+                if (t.fake_symbol) fake_symbol = t.fake_symbol
+            })
+
+            // Avoid negative zero or tiny floating point errors
+            if (Math.abs(quantity) < 0.0001) {
+                quantity = 0
+                costBasis = 0
+            }
+
+            return {
+                symbol,
+                fake_symbol,
+                name,
+                quantity,
+                totalInvested: costBasis, // This is now the remaining cost basis
+                realizedProfit,
+                avg_price: quantity > 0 ? costBasis / quantity : 0
+            }
+        })
     }, [holdings])
 
     console.log('Portfolio: aggregatedHoldings:', aggregatedHoldings)
@@ -157,7 +219,8 @@ export default function Portfolio() {
         return aggregatedHoldings.map(h => {
             const currentPrice = getCurrentPrice(h.symbol, h.avg_price)
             const currentValue = h.quantity * currentPrice
-            const profit = currentValue - h.totalInvested
+            // Total Profit = (Current Value - Remaining Cost Basis) + Realized Profit
+            const profit = (currentValue - h.totalInvested) + h.realizedProfit
             return {
                 symbol: h.fake_symbol || h.symbol,
                 profit,
@@ -282,8 +345,20 @@ export default function Portfolio() {
                         const qty = item.quantity || 0
                         const totalValue = currentPrice * qty
                         const investedValue = item.totalInvested || 0
-                        const profit = totalValue - investedValue
-                        const profitPercent = investedValue !== 0 ? (profit / investedValue) * 100 : 0
+                        const realizedProfit = item.realizedProfit || 0
+                        
+                        // Unrealized Profit = Current Value - Remaining Cost Basis
+                        const unrealizedProfit = totalValue - investedValue
+                        
+                        // Total Profit for display
+                        const totalProfit = unrealizedProfit + realizedProfit
+                        
+                        // Profit Percent (based on original investment + current investment)
+                        // This is tricky with realized profit. Simplified: (Total Profit / (Invested + Cost of Sold))
+                        // But we don't track "Cost of Sold" easily here. 
+                        // Let's just show absolute profit and maybe % return on *current* invested if qty > 0
+                        
+                        const profitPercent = investedValue > 0 ? (unrealizedProfit / investedValue) * 100 : 0
 
                         return (
                             <div
@@ -330,14 +405,19 @@ export default function Portfolio() {
                                         <p className="text-text-muted text-xs mb-1">Current Value</p>
                                         <p className="text-xl font-bold text-text-main">₹{totalValue.toFixed(2)}</p>
                                     </div>
-                                    <div className={`text-right ${profit >= 0 ? 'text-success' : 'text-error'}`}>
+                                    <div className={`text-right ${totalProfit >= 0 ? 'text-success' : 'text-error'}`}>
                                         <div className="flex items-center justify-end gap-1 font-bold text-sm">
-                                            {profit >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                                            {profitPercent.toFixed(2)}%
+                                            {totalProfit >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                                            {qty > 0 ? profitPercent.toFixed(2) + '%' : 'Sold'}
                                         </div>
                                         <p className="text-xs font-medium mt-1">
-                                            {profit >= 0 ? '+' : ''}₹{profit.toFixed(2)}
+                                            {totalProfit >= 0 ? '+' : ''}₹{totalProfit.toFixed(2)}
                                         </p>
+                                        {realizedProfit !== 0 && (
+                                            <p className="text-[10px] text-text-muted mt-0.5">
+                                                (Realized: {realizedProfit >= 0 ? '+' : ''}₹{realizedProfit.toFixed(0)})
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -353,9 +433,10 @@ export default function Portfolio() {
                             <table className="w-full text-left whitespace-nowrap">
                                 <thead className="bg-surface-hover text-primary border-b border-border font-heading">
                                     <tr>
+                                        <th className="px-3 py-2 md:px-6 md:py-4 text-sm font-bold tracking-wider">Date</th>
                                         <th className="px-3 py-2 md:px-6 md:py-4 text-sm font-bold tracking-wider">Symbol</th>
                                         <th className="px-3 py-2 md:px-6 md:py-4 text-sm font-bold tracking-wider text-right">Quantity</th>
-                                        <th className="px-3 py-2 md:px-6 md:py-4 text-sm font-bold tracking-wider text-right">Purchase Price</th>
+                                        <th className="px-3 py-2 md:px-6 md:py-4 text-sm font-bold tracking-wider text-right">Price</th>
                                         <th className="px-3 py-2 md:px-6 md:py-4 text-sm font-bold tracking-wider text-right">Invested</th>
                                         <th className="px-3 py-2 md:px-6 md:py-4 text-sm font-bold tracking-wider"></th>
                                     </tr>
@@ -367,12 +448,18 @@ export default function Portfolio() {
 
                                         return (
                                             <tr key={item.id} className="hover:bg-surface-hover transition-colors">
+                                                <td className="px-3 py-2 md:px-6 md:py-4 text-text-muted text-sm">
+                                                    {item.date ? new Date(item.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}
+                                                </td>
                                                 <td className="px-3 py-2 md:px-6 md:py-4 text-text-main font-bold">
                                                     {item.fake_symbol || item.symbol}
+                                                    <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${item.quantity < 0 ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}`}>
+                                                        {item.quantity < 0 ? 'SELL' : 'BUY'}
+                                                    </span>
                                                 </td>
-                                                <td className="px-3 py-2 md:px-6 md:py-4 text-text-main text-right">{item.quantity}</td>
+                                                <td className="px-3 py-2 md:px-6 md:py-4 text-text-main text-right">{Math.abs(item.quantity)}</td>
                                                 <td className="px-3 py-2 md:px-6 md:py-4 text-text-muted text-right">₹{item.avg_price.toFixed(2)}</td>
-                                                <td className="px-3 py-2 md:px-6 md:py-4 text-text-main text-right font-bold">₹{investedValue.toFixed(2)}</td>
+                                                <td className="px-3 py-2 md:px-6 md:py-4 text-text-main text-right font-bold">₹{Math.abs(investedValue).toFixed(2)}</td>
                                                 <td className="px-3 py-2 md:px-6 md:py-4 text-right">
                                                     {profile?.role === 'admin' && (
                                                         <button
@@ -411,13 +498,18 @@ export default function Portfolio() {
                             return (
                                 <div key={item.id} className="bg-surface rounded-xl border border-border p-3 shadow-sm flex justify-between items-center">
                                     <div>
-                                        <h3 className="text-sm font-bold text-text-main">{item.fake_symbol || item.symbol}</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-sm font-bold text-text-main">{item.fake_symbol || item.symbol}</h3>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${item.quantity < 0 ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}`}>
+                                                {item.quantity < 0 ? 'SELL' : 'BUY'}
+                                            </span>
+                                        </div>
                                         <div className="text-xs text-text-muted mt-1">
-                                            {item.quantity} @ ₹{item.avg_price.toFixed(2)}
+                                            {item.date ? new Date(item.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''} • {Math.abs(item.quantity)} @ ₹{item.avg_price.toFixed(2)}
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-sm font-bold text-text-main">₹{investedValue.toFixed(2)}</div>
+                                        <div className="text-sm font-bold text-text-main">₹{Math.abs(investedValue).toFixed(2)}</div>
                                         {profile?.role === 'admin' && (
                                             <button
                                                 onClick={(e) => {
@@ -445,10 +537,46 @@ export default function Portfolio() {
             {/* Add Modal */}
             {
                 isModalOpen && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
                         <div className="bg-surface rounded-2xl p-6 w-full max-w-md border border-border shadow-luxury">
-                            <h2 className="text-xl font-bold text-primary mb-4 font-heading">Add New Holding</h2>
+                            <h2 className="text-xl font-bold text-primary mb-4 font-heading">
+                                {formData.transactionType === 'buy' ? 'Add New Holding' : 'Sell Holding'}
+                            </h2>
                             <form onSubmit={handleSubmit} className="space-y-4 font-body">
+                                {/* Transaction Type Toggle */}
+                                <div className="flex bg-background rounded-xl p-1 border border-border mb-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, transactionType: 'buy' })}
+                                        className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${formData.transactionType === 'buy'
+                                            ? 'bg-success text-white shadow-md'
+                                            : 'text-text-muted hover:text-text-main'
+                                            }`}
+                                    >
+                                        Buy
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, transactionType: 'sell' })}
+                                        className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${formData.transactionType === 'sell'
+                                            ? 'bg-error text-white shadow-md'
+                                            : 'text-text-muted hover:text-text-main'
+                                            }`}
+                                    >
+                                        Sell
+                                    </button>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-text-muted mb-1">Date</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-primary transition-colors"
+                                        value={formData.date}
+                                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                    />
+                                </div>
                                 <div>
                                     <label className="block text-sm font-medium text-text-muted mb-1">Symbol (e.g., RELIANCE)</label>
                                     <input
@@ -526,7 +654,7 @@ export default function Portfolio() {
                                         disabled={addMutation.isPending}
                                         className="px-6 py-2 bg-primary text-background font-bold rounded-xl hover:bg-primary-hover disabled:opacity-50 transition-all shadow-gold-glow"
                                     >
-                                        {addMutation.isPending ? 'Adding...' : 'Add Holding'}
+                                        {addMutation.isPending ? 'Processing...' : (formData.transactionType === 'buy' ? 'Add Holding' : 'Sell Holding')}
                                     </button>
                                 </div>
                             </form>
