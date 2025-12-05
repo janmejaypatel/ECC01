@@ -63,11 +63,33 @@ export const AuthProvider = ({ children }) => {
     }
 
     const signIn = async (email, password) => {
+        // 1. Perform the sign-in
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password,
         })
         if (error) throw error
+
+        // 2. Check if user is approved
+        if (data?.user) {
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('is_approved')
+                .eq('id', data.user.id)
+                .single()
+
+            if (profileError) {
+                // If we can't fetch the profile, it's safer to log them out
+                await supabase.auth.signOut()
+                throw new Error('Error verifying account status. Please contact support.')
+            }
+
+            if (!profile?.is_approved) {
+                await supabase.auth.signOut()
+                throw new Error('Your account is pending approval. Please contact an admin.')
+            }
+        }
+
         return data
     }
 
