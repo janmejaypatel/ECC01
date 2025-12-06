@@ -13,7 +13,9 @@ export default function Installments() {
         user_id: '',
         amount: '',
         date: new Date().toISOString().split('T')[0],
-        type: 'cash'
+        type: 'cash',
+        installment_type: '',
+        note: ''
     })
 
     // Fetch Installments with User Details
@@ -147,6 +149,7 @@ export default function Installments() {
                                 <th className="px-6 py-4 text-sm font-bold tracking-wider">Date</th>
                                 <th className="px-6 py-4 text-sm font-bold tracking-wider">Member</th>
                                 <th className="px-6 py-4 text-sm font-bold tracking-wider">Type</th>
+                                <th className="px-6 py-4 text-sm font-bold tracking-wider">Mode</th>
                                 <th className="px-6 py-4 text-sm font-bold tracking-wider text-right">Amount</th>
                                 {profile?.role === 'admin' && <th className="px-6 py-4 text-sm font-bold tracking-wider"></th>}
                             </tr>
@@ -156,6 +159,7 @@ export default function Installments() {
                                 <tr key={item.id} className="hover:bg-surface-hover transition-colors">
                                     <td className="px-6 py-4 text-text-muted">{item.date}</td>
                                     <td className="px-6 py-4 text-text-main font-medium">{item.profiles?.full_name || 'Unknown'}</td>
+                                    <td className="px-6 py-4 text-text-muted">{item.installment_type}</td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 text-xs rounded-full font-medium ${item.type === 'invested' ? 'bg-primary/10 text-primary' : 'bg-success/10 text-success'
                                             }`}>
@@ -196,7 +200,7 @@ export default function Installments() {
                         <div className="flex justify-between items-start mb-3">
                             <div>
                                 <h3 className="text-lg font-bold text-text-main">{item.profiles?.full_name || 'Unknown'}</h3>
-                                <p className="text-sm text-text-muted">{item.date}</p>
+                                <p className="text-sm text-text-muted">{item.date} • {item.installment_type}</p>
                             </div>
                             <div className="text-right">
                                 <span className="text-xl font-bold text-text-main">₹{item.amount}</span>
@@ -272,6 +276,16 @@ export default function Installments() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-text-muted mb-1">Type</label>
+                                <input
+                                    type="text"
+                                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-primary transition-colors"
+                                    placeholder="e.g. Monthly, Deposit"
+                                    value={formData.installment_type}
+                                    onChange={(e) => setFormData({ ...formData, installment_type: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-text-muted mb-1">Transaction Mode</label>
                                 <select
                                     className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-primary transition-colors"
                                     value={formData.type}
@@ -280,6 +294,16 @@ export default function Installments() {
                                     <option value="cash">Cash (Deposit)</option>
                                     <option value="invested">Invested (Direct)</option>
                                 </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-text-muted mb-1">Note</label>
+                                <textarea
+                                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-primary transition-colors"
+                                    rows="3"
+                                    placeholder="Optional note..."
+                                    value={formData.note}
+                                    onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                                />
                             </div>
                             <div className="flex justify-end gap-3 mt-6">
                                 <button
