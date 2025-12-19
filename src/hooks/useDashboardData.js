@@ -19,7 +19,23 @@ export function useDashboardData() {
 
             if (holdError) throw holdError
 
-            // 3. Calculate Totals (Group)
+            // 3. Fetch Stock Prices
+            const { data: stockPrices, error: priceError } = await supabase
+                .from('stock_prices')
+                .select('symbol, price')
+
+            if (priceError) {
+                console.warn('Could not fetch stock prices (table missing or RLS error). Proceeding without live prices.', priceError)
+                // Do not throw, return empty map
+            }
+
+            // Create price map
+            const priceMap = {}
+            stockPrices?.forEach(p => {
+                priceMap[p.symbol] = Number(p.price)
+            })
+
+            // 4. Calculate Totals (Group)
             const totalCapital = installments?.reduce((sum, item) => sum + Number(item.amount), 0) || 0
 
             // Helper to calculate holdings with Weighted Average Cost Basis
@@ -69,12 +85,11 @@ export function useDashboardData() {
                     totalInvested += costBasis
                     totalRealizedProfit += realizedProfit
 
-                    // Mock Current Value (Quantity * AvgPrice * 1.1) - In real app, use real price
-                    // For dashboard summary, we might not have real prices easily available without extra API calls
-                    // So we use the last known avg_price * 1.1 as a mock or just costBasis if conservative
-                    // Let's stick to the previous mock logic: AvgPrice * 1.1
-                    const mockCurrentPrice = transactions[transactions.length - 1].avg_price * 1.1
-                    totalCurrentValue += quantity * mockCurrentPrice
+                    // Current Value Calculation
+                    // Priority: 1. Live DB Price, 2. Previous Close (Mock fallback removed for strict persistence)
+                    // If no price found, fallback to cost or avg_price to avoid 0
+                    const currentPrice = priceMap[symbol] || transactions[transactions.length - 1].avg_price
+                    totalCurrentValue += quantity * currentPrice
                 })
 
                 return { totalInvested, totalRealizedProfit, totalCurrentValue }
@@ -116,6 +131,7 @@ export function useDashboardData() {
                 installments,
                 holdings
             }
-        }
+        },
+        refetchInterval: 10000 // Poll every 10 seconds to catch price updates from other clients
     })
 }

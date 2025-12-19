@@ -5,6 +5,7 @@ import { LogOut, Settings, Shield, Sun, Moon, Bell, Check, X } from 'lucide-reac
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabaseClient'
 import { Link, Outlet } from 'react-router-dom'
+import { useStockPrices } from '../hooks/useStockPrices'
 import BottomNavigation from './BottomNavigation'
 import clsx from 'clsx'
 
@@ -30,6 +31,21 @@ export default function DashboardLayout() {
         enabled: !!profile?.id,
         refetchInterval: 30000 // Poll every 30 seconds
     })
+
+    // Fetch Holdings to get symbols for global price updates
+    const { data: holdings } = useQuery({
+        queryKey: ['holdings'],
+        queryFn: async () => {
+            const { data, error } = await supabase.from('holdings').select('*')
+            if (error) throw error
+            return data
+        }
+    })
+
+    // Global Price Sync
+    // This hook will run in the background and update the stock_prices table
+    // It doesn't need to return data here, just ensure it's active
+    useStockPrices(holdings)
 
     const unreadCount = notifications?.filter(n => !n.is_read).length || 0
 

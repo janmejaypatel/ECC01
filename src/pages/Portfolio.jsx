@@ -73,7 +73,7 @@ export default function Portfolio() {
         }
     })
 
-    const { data: prices, isLoading: isLoadingPrices, refetch: refetchPrices, isError: isPriceError } = useStockPrices(holdings)
+    const { prices, isLoading: isLoadingPrices, refetch: refetchPrices } = useStockPrices(holdings)
 
     // Check if we have any real prices
     const hasLivePrices = prices && Object.keys(prices).length > 0
@@ -140,8 +140,9 @@ export default function Portfolio() {
         if (prices && prices[symbol]) {
             return prices[symbol]
         }
-        // Fallback to mock if no API data
-        return avgPrice * 1.12
+        // If DB price is missing, fallback to avgPrice to avoid showing 0 or bad data
+        // But strictly, we should rely on what useStockPrices returns (which handles fallback fetching)
+        return avgPrice
     }
 
     const aggregatedHoldings = useMemo(() => {
@@ -158,7 +159,7 @@ export default function Portfolio() {
 
         return Object.keys(groups).map(symbol => {
             const transactions = groups[symbol].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
-            
+
             let quantity = 0
             let costBasis = 0
             let realizedProfit = 0
@@ -168,7 +169,7 @@ export default function Portfolio() {
             transactions.forEach(t => {
                 const qty = Number(t.quantity)
                 const price = Number(t.avg_price)
-                
+
                 if (qty > 0) {
                     // BUY
                     quantity += qty
@@ -179,7 +180,7 @@ export default function Portfolio() {
                     if (quantity > 0) {
                         const avgCost = costBasis / quantity
                         const costOfSoldShares = sellQty * avgCost
-                        
+
                         realizedProfit += (sellQty * price) - costOfSoldShares
                         costBasis -= costOfSoldShares
                         quantity -= sellQty
@@ -282,7 +283,7 @@ export default function Portfolio() {
             <div className="flex items-center gap-2 mb-4 text-sm">
                 <div className={`w-2 h-2 rounded-full ${isLoadingPrices ? 'bg-yellow-400 animate-pulse' : hasLivePrices ? 'bg-success' : 'bg-error'}`}></div>
                 <span className="text-text-muted">
-                    {isLoadingPrices ? 'Fetching live prices...' : hasLivePrices ? 'Live Market Data Active' : 'Using Mock Data (Live Data Unavailable)'}
+                    {isLoadingPrices ? 'Syncing prices...' : hasLivePrices ? 'Prices Up to Date' : 'Using Last Known Prices'}
                 </span>
                 {!isLoadingPrices && !hasLivePrices && (
                     <button
@@ -346,18 +347,18 @@ export default function Portfolio() {
                         const totalValue = currentPrice * qty
                         const investedValue = item.totalInvested || 0
                         const realizedProfit = item.realizedProfit || 0
-                        
+
                         // Unrealized Profit = Current Value - Remaining Cost Basis
                         const unrealizedProfit = totalValue - investedValue
-                        
+
                         // Total Profit for display
                         const totalProfit = unrealizedProfit + realizedProfit
-                        
+
                         // Profit Percent (based on original investment + current investment)
                         // This is tricky with realized profit. Simplified: (Total Profit / (Invested + Cost of Sold))
                         // But we don't track "Cost of Sold" easily here. 
                         // Let's just show absolute profit and maybe % return on *current* invested if qty > 0
-                        
+
                         const profitPercent = investedValue > 0 ? (unrealizedProfit / investedValue) * 100 : 0
 
                         return (

@@ -1,195 +1,204 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { supabase } from '../lib/supabaseClient'
 
 const FINNHUB_API_KEY = import.meta.env.VITE_FINNHUB_API_KEY?.trim()
 const TWELVE_DATA_API_KEY = import.meta.env.VITE_TWELVE_DATA_API_KEY?.trim()
 
-console.log('API Keys present:', {
-    Finnhub: !!FINNHUB_API_KEY,
-    TwelveData: !!TWELVE_DATA_API_KEY
-})
+// Batch fetch from Twelve Data
+const fetchTwelveDataBatch = async (symbols) => {
+    if (!TWELVE_DATA_API_KEY || symbols.length === 0) return {}
 
-const fetchTwelveDataPrice = async (symbol) => {
-    if (!TWELVE_DATA_API_KEY) return null
     try {
-        // Format for Indian stocks: RELIANCE -> RELIANCE:NSE
-        const querySymbol = symbol.includes('.') ? symbol : `${symbol}:NSE`
-        console.log(`Fetching Twelve Data for ${querySymbol}...`)
+        const symbolMap = symbols.reduce((acc, symbol) => {
+            let apiSymbol = symbol
+            if (symbol.endsWith('.NS')) {
+                apiSymbol = `${symbol.replace('.NS', '')}:NSE`
+            } else if (!symbol.includes('.') && !symbol.includes(':')) {
+                apiSymbol = `${symbol}:NSE`
+            }
+            acc[symbol] = apiSymbol
+            return acc
+        }, {})
 
-        const response = await fetch(`https://api.twelvedata.com/price?symbol=${querySymbol}&apikey=${TWELVE_DATA_API_KEY}`)
+        const apiSymbols = Object.values(symbolMap).join(',')
+        console.log(`Fetching Twelve Data Batch for: ${apiSymbols}`)
+
+        const response = await fetch(`https://api.twelvedata.com/price?symbol=${apiSymbols}&apikey=${TWELVE_DATA_API_KEY}`)
         const data = await response.json()
 
-        if (data.price) {
-            console.log(`Found Twelve Data price for ${querySymbol}: ${data.price}`)
-            return parseFloat(data.price)
-        } else if (data.message) {
-            console.warn(`Twelve Data error for ${querySymbol}:`, data.message)
+        const results = {}
+
+        if (data.code === 400 || data.code === 401 || data.code === 429) {
+            console.warn('Twelve Data Batch Error:', data.message)
+            return results
         }
-        return null
+
+        if (symbols.length === 1 && data.price) {
+            results[symbols[0]] = parseFloat(data.price)
+        } else {
+            Object.entries(symbolMap).forEach(([originalSymbol, apiSymbol]) => {
+                const item = data[apiSymbol]
+                if (item && item.price) {
+                    results[originalSymbol] = parseFloat(item.price)
+                }
+            })
+        }
+        return results
     } catch (error) {
-        console.error(`Twelve Data error for ${symbol}:`, error)
-        return null
+        console.error('Twelve Data Batch Failed:', error)
+        return {}
     }
 }
 
-const fetchYahooPrice = async (symbol) => {
+// Fallback fetch (Yahoo/Finnhub)
+const fetchFallbackPrice = async (symbol) => {
+    // 1. Try Yahoo Finance Proxies
     try {
-        // Ensure symbol has .NS suffix for Indian stocks if not present
         const yahooSymbol = symbol.includes('.') ? symbol : `${symbol}.NS`
-        console.log(`Fetching Yahoo Finance for ${yahooSymbol}...`)
-
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}`
-
-        // List of proxies to try in order
         const proxies = [
-            (target) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(target)}`, // Often most reliable
+            (target) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(target)}`,
             (target) => `https://corsproxy.io/?${encodeURIComponent(target)}`,
             (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
         ]
 
-        for (const createProxyUrl of proxies) {
+        for (const createProxy of proxies) {
             try {
-                const proxyUrl = createProxyUrl(url)
-                // console.log(`Trying proxy: ${proxyUrl}`)
-
-                const response = await fetch(proxyUrl)
-                if (!response.ok) throw new Error(`Status: ${response.status}`)
-
+                const response = await fetch(createProxy(url))
+                if (!response.ok) continue
                 const data = await response.json()
-                let price = null
 
-                // Handle different response structures (raw vs wrapped)
+                let price = null
                 if (data.contents && typeof data.contents === 'string') {
-                    // Handle allorigins 'get' wrapper
                     const parsed = JSON.parse(data.contents)
                     price = parsed?.chart?.result?.[0]?.meta?.regularMarketPrice
                 } else {
-                    // Handle raw JSON
                     price = data?.chart?.result?.[0]?.meta?.regularMarketPrice
                 }
 
-                if (price) {
-                    console.log(`Found Yahoo price for ${yahooSymbol}: ${price}`)
-                    return price
-                }
-            } catch (err) {
-                // console.warn(`Proxy failed for ${yahooSymbol}:`, err)
-                // Continue to next proxy
+                if (price) return price
+            } catch (e) {
+                // Continue
             }
         }
-
-        throw new Error('All proxies failed')
-    } catch (error) {
-        console.error(`Yahoo Finance Error for ${symbol}:`, error)
-        return null
+    } catch (e) {
+        console.error(`Yahoo fallback failed for ${symbol}`, e)
     }
-}
 
-const fetchPrice = async (symbol) => {
-    // Note: Twelve Data is now handled in batch in the main hook.
-    // This function is for fallbacks only.
-
-    // 1. Try Finnhub first (if key exists)
+    // 2. Try Finnhub
     if (FINNHUB_API_KEY) {
-        // console.log(`Fetching Finnhub for ${symbol}...`)
         try {
-            const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`)
-            if (response.ok) {
-                const data = await response.json()
-                // If valid price found
-                if (data.c && data.c !== 0) {
-                    console.log(`Found Finnhub price for ${symbol}: ${data.c}`)
-                    return data.c
-                }
-            } else {
-                console.warn(`Finnhub failed for ${symbol} (${response.status}). Switching to fallback...`)
+            const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`)
+            if (res.ok) {
+                const data = await res.json()
+                if (data.c) return data.c
             }
-        } catch (error) {
-            console.error(`Finnhub error for ${symbol}:`, error)
+        } catch (e) {
+            console.error(`Finnhub failed for ${symbol}`, e)
         }
     }
 
-    // 3. Fallback to Yahoo Finance Proxies
-    const yahooPrice = await fetchYahooPrice(symbol)
-    if (yahooPrice) return yahooPrice
-
-    console.warn(`No price found for ${symbol} from any source.`)
     return null
 }
 
 export const useStockPrices = (holdings) => {
-    return useQuery({
-        queryKey: ['stockPrices', (holdings || []).map(h => h.symbol).join(',')],
+    const queryClient = useQueryClient()
+    const uniqueSymbols = useMemo(() => {
+        if (!holdings) return []
+        return [...new Set(holdings.map(h => h.symbol))]
+    }, [holdings])
+
+    // 1. Fetch from DB
+    const { data: dbPrices, isLoading: isDbLoading } = useQuery({
+        queryKey: ['stockPrices', 'db'],
         queryFn: async () => {
-            console.log('useStockPrices: fetching for holdings:', holdings)
-            if (!holdings || holdings.length === 0) return {}
-
-            const prices = {}
-            const uniqueSymbols = [...new Set(holdings.map(h => h.symbol))]
-
-            // 1. Try Twelve Data Batch Fetch (Most Efficient)
-            if (TWELVE_DATA_API_KEY) {
-                try {
-                    // Create a map of Original Symbol -> API Symbol
-                    const symbolMap = uniqueSymbols.reduce((acc, symbol) => {
-                        let apiSymbol = symbol;
-                        // Convert .NS to :NSE for Twelve Data
-                        if (symbol.endsWith('.NS')) {
-                            apiSymbol = `${symbol.replace('.NS', '')}:NSE`;
-                        } else if (!symbol.includes('.') && !symbol.includes(':')) {
-                            // Default to NSE for plain symbols (assuming Indian context)
-                            apiSymbol = `${symbol}:NSE`;
-                        }
-                        acc[symbol] = apiSymbol;
-                        return acc;
-                    }, {});
-
-                    const apiSymbols = Object.values(symbolMap).join(',');
-                    console.log(`Fetching Twelve Data Batch for: ${apiSymbols}`);
-
-                    const response = await fetch(`https://api.twelvedata.com/price?symbol=${apiSymbols}&apikey=${TWELVE_DATA_API_KEY}`);
-                    const data = await response.json();
-
-                    if (data.code === 400 || data.code === 401 || data.code === 429) {
-                        console.warn('Twelve Data Batch Error:', data.message);
-                    } else {
-                        // Handle single symbol response (data is object with price)
-                        if (uniqueSymbols.length === 1 && data.price) {
-                            prices[uniqueSymbols[0]] = parseFloat(data.price);
-                        } else {
-                            // Handle batch response (data is object with keys as symbols)
-                            // Map back from API Symbol -> Original Symbol
-                            Object.entries(symbolMap).forEach(([originalSymbol, apiSymbol]) => {
-                                // The API returns keys exactly as requested (e.g. "RELIANCE:NSE")
-                                const item = data[apiSymbol];
-                                if (item && item.price) {
-                                    prices[originalSymbol] = parseFloat(item.price);
-                                }
-                            });
-                        }
-                        console.log('Twelve Data Batch Success:', prices);
-                    }
-                } catch (error) {
-                    console.error('Twelve Data Batch Failed:', error);
-                }
+            const { data, error } = await supabase.from('stock_prices').select('*')
+            if (error) {
+                console.error('Error fetching stock_prices from DB (using invalid/empty cache):', error)
+                return {}
             }
 
-            // 2. Fill gaps with Fallbacks (Finnhub / Yahoo)
-            for (const symbol of uniqueSymbols) {
-                if (prices[symbol]) continue; // Skip if already found
-
-                // Add a small delay for individual fallbacks
-                await new Promise(resolve => setTimeout(resolve, 200))
-                const price = await fetchPrice(symbol) // This uses the existing fetchPrice fallback logic (Finnhub -> Yahoo)
-                if (price !== null) {
-                    prices[symbol] = price
+            const priceMap = {}
+            data?.forEach(row => {
+                priceMap[row.symbol] = {
+                    price: Number(row.price),
+                    last_updated: row.last_updated
                 }
-            }
-
-            return prices
+            })
+            return priceMap
         },
-        enabled: !!holdings && holdings.length > 0,
-        refetchInterval: 60000, // Refetch every minute
-        staleTime: 55000, // Consider data fresh for 55 seconds
-        retry: 1,
+        refetchInterval: 10000 // Poll DB every 10s for updates from other clients
     })
+
+    // 2. Background Fetcher
+    useQuery({
+        queryKey: ['stockPrices', 'fetch', uniqueSymbols.join(',')],
+        queryFn: async () => {
+            if (uniqueSymbols.length === 0) return null
+
+            const now = new Date()
+            const staleThreshold = 5 * 60 * 1000 // 5 minutes
+
+            // Filter symbols that need updating
+            const symbolsToUpdate = uniqueSymbols.filter(symbol => {
+                const entry = dbPrices?.[symbol]
+                if (!entry) return true // Not in DB
+                const lastUpdated = new Date(entry.last_updated)
+                return (now - lastUpdated) > staleThreshold // Stale
+            })
+
+            if (symbolsToUpdate.length === 0) {
+                console.log('UseStockPrices: No stale symbols to update.')
+                return null
+            }
+            console.log('UseStockPrices: Refreshing prices for:', symbolsToUpdate)
+
+            // Fetch new prices
+            const newPrices = {}
+            // Batch fetch
+            const batchResults = await fetchTwelveDataBatch(symbolsToUpdate)
+            Object.assign(newPrices, batchResults)
+
+            // Fallbacks for missing
+            const missing = symbolsToUpdate.filter(s => !newPrices[s])
+            for (const s of missing) {
+                await new Promise(r => setTimeout(r, 200))
+                const p = await fetchFallbackPrice(s)
+                if (p) newPrices[s] = p
+            }
+
+            // Upsert to DB
+            const upsertData = Object.entries(newPrices).map(([symbol, price]) => ({
+                symbol,
+                price,
+                last_updated: new Date().toISOString()
+            }))
+
+            if (upsertData.length > 0) {
+                const { error } = await supabase.from('stock_prices').upsert(upsertData)
+                if (error) console.error('Error upserting prices:', error)
+                else queryClient.invalidateQueries(['stockPrices', 'db'])
+            }
+
+            return newPrices
+        },
+        enabled: uniqueSymbols.length > 0 && !isDbLoading, // Run once DB is attempted
+        refetchInterval: 60000 // Check for stale logic every minute
+    })
+
+    // Return the prices directly usable by UI
+    const finalPrices = useMemo(() => {
+        if (!dbPrices) return {}
+        const map = {}
+        Object.keys(dbPrices).forEach(key => map[key] = dbPrices[key].price)
+        return map
+    }, [dbPrices])
+
+    return {
+        prices: finalPrices,
+        isLoading: isDbLoading,
+        refetch: () => queryClient.invalidateQueries(['stockPrices'])
+    }
 }
+

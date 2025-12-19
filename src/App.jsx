@@ -15,6 +15,7 @@ import Admin from './pages/Admin'
 import Group from './pages/Group'
 import ProtectedRoute from './components/ProtectedRoute'
 import UpdatePassword from './pages/UpdatePassword'
+import ForgotPassword from './pages/ForgotPassword'
 
 const queryClient = new QueryClient()
 
@@ -27,6 +28,7 @@ function App() {
                         <Route path="/login" element={<Login />} />
                         <Route path="/signup" element={<Signup />} />
                         <Route path="/update-password" element={<UpdatePassword />} />
+                        <Route path="/forgot-password" element={<ForgotPassword />} />
 
                         <Route path="/" element={
                             <ProtectedRoute>
